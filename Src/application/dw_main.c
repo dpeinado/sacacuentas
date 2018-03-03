@@ -85,7 +85,6 @@ void initDW(int lpnmode)
 static anchorData_t myAnc;
 static tagData_t myTag;
 static uint8 myerror;
-static uint8 NTags = NTAGS;
 static uint8 TagIdx = 0;
 static bool tengo_datos = false;
 static bool tengo_estado = false;
@@ -116,15 +115,20 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
-#define ANCHOR
+//#define ANCHOR
 
 int dw_main(void)
 {
+	conf_data.ntags = 5;
+	conf_data.test_tag = 2;
+	conf_data.max_fallos_desenlaza = 5;
+	conf_data.max_distancia = 1.5;
+
 #ifdef ANCHOR
 	initDW(1);
 	dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);
 	dwt_setrxtimeout(ANC_RESP_RX_TIMEOUT_UUS);
-	initAnchor(&myAnc, NTags);
+	initAnchor(&myAnc, conf_data.ntags);
 	HAL_TIM_Base_Start_IT(&htim2);
     while (1) {
     	if(tengo_datos){
@@ -163,7 +167,7 @@ int dw_main(void)
 	initDW(1);
 
 	//activation_ts = (uint64) (MAX_TAGS)*7.5-1.5;
-    initTag(&myTag, NTags);
+    initTag(&myTag, conf_data.ntags);
     //dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
 
     HAL_TIM_Base_Start_IT(&htim3);

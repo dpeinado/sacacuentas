@@ -38,14 +38,17 @@
 
 /* Speed of light in air, in metres per second. */
 #define SPEED_OF_LIGHT 299702547
-
-#define MAX_TAGS				75
-#define NTAGS					15
-#define TEST_TAG				2
-#define MAX_FALLOS_DESENLAZA	5
-#define MAX_DISTANCIA			1.5
-
 #define MS_FROM_BEACON_TO_RANGE	2000
+
+#define MAX_TAGS 75
+typedef struct {
+	uint8 ntags;
+	uint8 test_tag;
+	uint8 max_fallos_desenlaza;
+	float max_distancia;
+} confData_t;
+
+confData_t conf_data;
 
 typedef struct
 {

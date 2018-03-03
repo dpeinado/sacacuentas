@@ -32,7 +32,7 @@ void get_system_state(anchorData_t *myAnc)
 			myAnc->perdidos[myAnc->nperdidos++]=i;
 		else {
 			myAnc->enlazados[myAnc->nenlazados++]=i;
-			if (myAnc->myTags[i].distance > MAX_DISTANCIA)
+			if (myAnc->myTags[i].distance > conf_data.max_distancia)
 				myAnc->fuera[myAnc->nfuera++]=i;
 		}
 	}
@@ -91,7 +91,7 @@ void initTag(tagData_t *midata, uint8 nt)
 {
 	midata->panID[0]=0x01;
 	midata->panID[1]=0x00;
-	midata->address[0]=TEST_TAG;
+	midata->address[0]=conf_data.test_tag;
 	midata->address[1]=0;
 	midata->frame_seq = 0;
 	midata->enlazado = false;
@@ -238,7 +238,7 @@ uint8 do_range(anchorData_t *myAnc, uint8 myIndx) {
 	else if (status_reg & SYS_STATUS_ALL_RX_TO)
 	{
 		myAnc->myTags[myIndx].fallos++;
-		if (myAnc->myTags[myIndx].fallos == MAX_FALLOS_DESENLAZA)
+		if (myAnc->myTags[myIndx].fallos == conf_data.max_fallos_desenlaza)
 			myAnc->myTags[myIndx].enlazado = false;
 
 		dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR);
@@ -293,6 +293,7 @@ uint8 do_read(uint16 timeout, int mode){
 		}
 		return IS_ERROR_UNKNOWN;
 	}
+	return IS_ERROR_UNKNOWN;
 }
 
 uint8 do_link(tagData_t *myTag){

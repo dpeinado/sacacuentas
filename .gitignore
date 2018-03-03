@@ -1,0 +1,5 @@
+Debug/
+Debug/sp_tx_interrupts.bin
+Debug/output.map
+Debug/sp_tx_interrupts.elf
+Debug/Src/application/dw_main.o

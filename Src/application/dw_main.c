@@ -26,9 +26,6 @@
 #include "port.h"
 #include "device.h"
 
-/* Inter-ranging delay period, in milliseconds. */
-#define RNG_DELAY_MS 10
-
 /* Default communication configuration. We use here EVK1000's mode 4. See NOTE 1 below. */
 static dwt_config_t config = {
     2,               /* Channel number. */
@@ -119,7 +116,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     }
 }
 
-//#define ANCHOR
+#define ANCHOR
 
 int dw_main(void)
 {

@@ -120,7 +120,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 int dw_main(void)
 {
 	conf_data.ntags = 5;
-	conf_data.test_tag = 2;
+	conf_data.test_tag = 0;
 	conf_data.max_fallos_desenlaza = 5;
 	conf_data.max_distancia = 1.5;
 

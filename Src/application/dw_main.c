@@ -69,6 +69,11 @@ int _write(int file, char *ptr, int len)
 static uint8 dummy_buffer[DUMMY_BUFFER_LEN];
 volatile uint16 link_sleep_cnt;
 
+void resucitaSPI(void){
+	HAL_GPIO_WritePin(DW_NSS_GPIO_Port, DW_NSS_Pin, GPIO_PIN_RESET);
+	usleep(700);
+	HAL_GPIO_WritePin(DW_NSS_GPIO_Port, DW_NSS_Pin, GPIO_PIN_SET);
+}
 
 void initDW(int lpnmode)
 {
@@ -185,15 +190,16 @@ int dw_main(void)
 			do_answer(&myTag);
 		}
 		if (a_dormir){
+			volatile uint resultado = 0;
 			a_dormir = false;
-			//dwt_configuresleepcnt(link_sleep_cnt);
-			//dwt_entersleep();
-			uint8 cuantosss=0;
-			uint resultado = 0;
-			while(!resultado){
-				resultado=HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
-				cuantosss++;
-			}
+			dwt_configuresleepcnt(link_sleep_cnt);
+			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
+			dwt_entersleep();
+			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
+			HAL_Delay(700);
+			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
+			resucitaSPI();
+			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
 		}
 	}
 #endif

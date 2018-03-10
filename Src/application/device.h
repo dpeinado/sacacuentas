@@ -8,6 +8,9 @@
 #ifndef APPLICATION_DEVICE_H_
 #define APPLICATION_DEVICE_H_
 
+/* Crystal frequency, in hertz. */
+#define XTAL_FREQ_HZ 38400000
+
 #define ADDR_BYTE_SIZE           (2)
 #define STANDARD_FRAME_SIZE         20
 #define TAG_FINAL_MSG_LEN           9              // FunctionCode(1), Range Num (1), Poll_TxTime(5),

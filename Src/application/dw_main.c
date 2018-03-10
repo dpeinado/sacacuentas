@@ -65,14 +65,21 @@ int _write(int file, char *ptr, int len)
  * el parámetro lpnmode sirve para activar la salida GPIO5 y CPIO6 para depurar con
  * el osciloscopio. El delay de la antena está puesto a capón.
  */
+#define DUMMY_BUFFER_LEN 1500
+static uint8 dummy_buffer[DUMMY_BUFFER_LEN];
+volatile uint16 link_sleep_cnt;
+
+
 void initDW(int lpnmode)
 {
+	dwt_spicswakeup(dummy_buffer, DUMMY_BUFFER_LEN);
 	reset_DW1000(); /* Target specific drive of RSTn line into DW1000 low for a period. */
     port_set_dw1000_slowrate();
     if (dwt_initialise(DWT_LOADUCODE) == DWT_ERROR)
     {
     	_Error_Handler("Inicializacion" , 56);
     }
+	link_sleep_cnt = ((uint32)((double)0.95*(19.2e6 / (double) dwt_calibratesleepcnt())))>>12;
     port_set_dw1000_fastrate();
     if(lpnmode){
     	dwt_setlnapamode(1, 1);
@@ -80,6 +87,9 @@ void initDW(int lpnmode)
     dwt_configure(&config);
     dwt_setrxantennadelay(RX_ANT_DLY);
     dwt_settxantennadelay(TX_ANT_DLY);
+
+    /* Configure sleep and wake-up parameters. */
+     dwt_configuresleep(DWT_PRESRV_SLEEP | DWT_CONFIG, DWT_WAKE_SLPCNT | DWT_WAKE_CS | DWT_SLP_EN);
 }
 
 static anchorData_t myAnc;
@@ -88,6 +98,7 @@ static uint8 myerror;
 static uint8 TagIdx = 0;
 static bool tengo_datos = false;
 static bool tengo_estado = false;
+static bool a_dormir = false;
 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
@@ -110,8 +121,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     else if (htim->Instance == htim3.Instance)
     {
     	//	ESTO ES PARA EL TAG
-    	do_link(&myTag);
-    	//do_answer(&myTag);
+    	if( do_link(&myTag) )
+    		a_dormir = true;
     }
 }
 
@@ -162,11 +173,8 @@ int dw_main(void)
     	}
     }
 #else
-    volatile uint64 cualos = 0;
-    //uint32 activation_ts;
-	initDW(1);
 
-	//activation_ts = (uint64) (MAX_TAGS)*7.5-1.5;
+	initDW(1);
     initTag(&myTag, conf_data.ntags);
     //dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
 
@@ -174,13 +182,19 @@ int dw_main(void)
 	while (1)
 	{
 		if (myTag.enlazado) {
-			//HAL_Delay(activation_ts);
-			cualos++;
 			do_answer(&myTag);
-			printf("S");
 		}
-//		if (myTag.fallos == MAX_FALLOS_DESENLAZA)
-//			myTag.enlazado = false;
+		if (a_dormir){
+			a_dormir = false;
+			//dwt_configuresleepcnt(link_sleep_cnt);
+			//dwt_entersleep();
+			uint8 cuantosss=0;
+			uint resultado = 0;
+			while(!resultado){
+				resultado=HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
+				cuantosss++;
+			}
+		}
 	}
 #endif
 

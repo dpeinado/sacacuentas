@@ -370,9 +370,9 @@ uint8 do_process_polling(tagData_t *myTag){
     uint64 resp_tx_ts;
 	uint32 resp_tx_time;
 	int ret;
+	uint16 lp_osc_freq, sleep_cnt;
 
-	poll_rx_ts = get_rx_timestamp_u64(); // mirar esto, parece que se ha arreglado una cosa y se ha fastidiado la otra
-	//poll_rx_ts = dwt_readrxtimestamphi32();
+	poll_rx_ts = get_rx_timestamp_u64();
 	resp_tx_time = (poll_rx_ts + (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME)) >> 8;
 	dwt_setdelayedtrxtime(resp_tx_time);
 	resp_tx_ts = (((uint64)(resp_tx_time & 0xFFFFFFFEUL)) << 8) + TX_ANT_DLY;
@@ -382,7 +382,6 @@ uint8 do_process_polling(tagData_t *myTag){
 	dwt_writetxdata(sizeof(answerFrame),(uint8 *) &answerFrame, 0); /* Zero offset in TX buffer. */
 	dwt_writetxfctrl(sizeof(answerFrame), 0, 1); /* Zero offset in TX buffer, ranging. */
 	ret = dwt_starttx(DWT_START_TX_DELAYED);
-
 	if (ret == DWT_SUCCESS)
 	{
 		while (!(dwt_read32bitreg(SYS_STATUS_ID) & SYS_STATUS_TXFRS));
@@ -391,6 +390,14 @@ uint8 do_process_polling(tagData_t *myTag){
 	myTag->enlazado = true;
 	resp_tx_ts = ((poll_rx_ts - (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME)) >> 8) + myTag->framePeriod;
 	dwt_setdelayedtrxtime( resp_tx_ts );
+
+/*	port_set_dw1000_slowrate();
+	lp_osc_freq = (XTAL_FREQ_HZ / 2) / dwt_calibratesleepcnt();
+	sleep_cnt = ((550 * lp_osc_freq) / 1000) >> 12;
+	dwt_configuresleepcnt(sleep_cnt);
+	port_set_dw1000_fastrate();
+	dwt_entersleep();*/
+
 	return 0;
 }
 

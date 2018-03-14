@@ -20,6 +20,7 @@ static uint8 rx_buffer[RX_BUF_LEN];
 /* Hold copy of status register state here for reference so that it can be examined at a debug breakpoint. */
 
 volatile uint32 status_reg = 0;
+void resucitaSPI(void);
 
 void get_system_state(anchorData_t *myAnc)
 {
@@ -261,7 +262,8 @@ uint8 do_read(uint16 timeout, int mode){
 	dwt_rxenable(mode);
 	while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) &
 		(SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)));
-
+	if (status_reg == 0xffffffff)
+		return IS_ERROR_UNKNOWN;
 	if (status_reg & SYS_STATUS_RXFCG){
 	    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD);
 
@@ -275,10 +277,7 @@ uint8 do_read(uint16 timeout, int mode){
 	    	return IS_BEACON_MSG;
 	    if (rx_buffer[FRAME_INDX_MESSAGE_DATA] == TWR_POLL_CMD)
 	    	return IS_POLL_MSG;
-
-
 	} else {
-
 		if (status_reg & SYS_STATUS_AFFREJ)
 			respuesta = IS_ADDRESS_ERR;
 		if (status_reg & SYS_STATUS_ALL_RX_TO)
@@ -321,6 +320,10 @@ uint8 do_link(tagData_t *myTag){
 			HAL_TIM_Base_Start_IT(&htim3);
 		}
 		dwt_rxreset();
+		return -1;
+	} else {
+		//error unknown
+		resucitaSPI();
 		return -1;
 	}
 	HAL_TIM_Base_Stop_IT(&htim3);

@@ -65,9 +65,9 @@ int _write(int file, char *ptr, int len)
  * el parámetro lpnmode sirve para activar la salida GPIO5 y CPIO6 para depurar con
  * el osciloscopio. El delay de la antena está puesto a capón.
  */
-#define DUMMY_BUFFER_LEN 1500
-static uint8 dummy_buffer[DUMMY_BUFFER_LEN];
+
 volatile uint16 link_sleep_cnt;
+volatile uint16 sleepcalibration;
 
 void resucitaSPI(void){
 	HAL_GPIO_WritePin(DW_NSS_GPIO_Port, DW_NSS_Pin, GPIO_PIN_RESET);
@@ -77,14 +77,16 @@ void resucitaSPI(void){
 
 void initDW(int lpnmode)
 {
-	dwt_spicswakeup(dummy_buffer, DUMMY_BUFFER_LEN);
+	resucitaSPI();
 	reset_DW1000(); /* Target specific drive of RSTn line into DW1000 low for a period. */
     port_set_dw1000_slowrate();
     if (dwt_initialise(DWT_LOADUCODE) == DWT_ERROR)
     {
     	_Error_Handler("Inicializacion" , 56);
     }
-	link_sleep_cnt = ((uint32)((double)0.95*(19.2e6 / (double) dwt_calibratesleepcnt())))>>12;
+    sleepcalibration =  dwt_calibratesleepcnt();
+	link_sleep_cnt = ((uint32)((double)0.95*(19.2e6 / (double) sleepcalibration)))>>12;
+	dwt_configuresleepcnt(link_sleep_cnt);
     port_set_dw1000_fastrate();
     if(lpnmode){
     	dwt_setlnapamode(1, 1);
@@ -94,7 +96,8 @@ void initDW(int lpnmode)
     dwt_settxantennadelay(TX_ANT_DLY);
 
     /* Configure sleep and wake-up parameters. */
-     dwt_configuresleep(DWT_PRESRV_SLEEP | DWT_CONFIG, DWT_WAKE_SLPCNT | DWT_WAKE_CS | DWT_SLP_EN);
+     dwt_configuresleep(DWT_PRESRV_SLEEP | DWT_CONFIG | DWT_LOADOPSET, DWT_WAKE_SLPCNT | DWT_WAKE_CS | DWT_SLP_EN);
+
 }
 
 static anchorData_t myAnc;
@@ -178,28 +181,35 @@ int dw_main(void)
     	}
     }
 #else
+    volatile uint32_t cuantos;
 
 	initDW(1);
     initTag(&myTag, conf_data.ntags);
     //dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
 
     HAL_TIM_Base_Start_IT(&htim3);
+    volatile uint resultado = 0;
+    char dist_str[30] = {0};
 	while (1)
 	{
 		if (myTag.enlazado) {
 			do_answer(&myTag);
 		}
 		if (a_dormir){
-			volatile uint resultado = 0;
 			a_dormir = false;
-			dwt_configuresleepcnt(link_sleep_cnt);
-			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
+//			cuantos=0;
+//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
 			dwt_entersleep();
-			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
-			HAL_Delay(700);
-			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
-			resucitaSPI();
-			resultado = HAL_GPIO_ReadPin(DW_NSS_GPIO_Port, DW_NSS_Pin);
+//			usleep(100);
+//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
+//			while (!(HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin))){
+//				cuantos++;
+//			};
+//			sprintf(dist_str, "\nCuantos = %lu, Resultado = %u", cuantos, resultado);
+//			printf("%s", dist_str);
+			//HAL_Delay(700);
+			//resucitaSPI();
+//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
 		}
 	}
 #endif

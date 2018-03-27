@@ -43,6 +43,9 @@ static dwt_config_t config = {
 
 //#define ALL_MSG_SN_IDX 2
 
+#define DUMMY_BUFFER_LEN 1500
+
+static uint8 dummy_buffer[DUMMY_BUFFER_LEN] __attribute__ ((aligned (4)));
 
 int __io_putchar(int ch)
 {
@@ -66,13 +69,15 @@ int _write(int file, char *ptr, int len)
  * el osciloscopio. El delay de la antena está puesto a capón.
  */
 
-volatile uint16 link_sleep_cnt;
-volatile uint16 sleepcalibration;
 
 void resucitaSPI(void){
+
 	HAL_GPIO_WritePin(DW_NSS_GPIO_Port, DW_NSS_Pin, GPIO_PIN_RESET);
-	usleep(700);
+	usleep(600);
 	HAL_GPIO_WritePin(DW_NSS_GPIO_Port, DW_NSS_Pin, GPIO_PIN_SET);
+	while (! (HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin)) );
+	usleep(300);
+	dwt_spicswakeup(dummy_buffer, DUMMY_BUFFER_LEN);
 }
 
 void initDW(int lpnmode)
@@ -84,9 +89,6 @@ void initDW(int lpnmode)
     {
     	_Error_Handler("Inicializacion" , 56);
     }
-    sleepcalibration =  dwt_calibratesleepcnt();
-	link_sleep_cnt = ((uint32)((double)0.95*(19.2e6 / (double) sleepcalibration)))>>12;
-	dwt_configuresleepcnt(link_sleep_cnt);
     port_set_dw1000_fastrate();
     if(lpnmode){
     	dwt_setlnapamode(1, 1);
@@ -96,7 +98,9 @@ void initDW(int lpnmode)
     dwt_settxantennadelay(TX_ANT_DLY);
 
     /* Configure sleep and wake-up parameters. */
-     dwt_configuresleep(DWT_PRESRV_SLEEP | DWT_CONFIG | DWT_LOADOPSET, DWT_WAKE_SLPCNT | DWT_WAKE_CS | DWT_SLP_EN);
+     dwt_configuresleep(DWT_PRESRV_SLEEP | DWT_LOADOPSET | DWT_CONFIG, DWT_WAKE_CS | DWT_SLP_EN);
+     uint32 txgrain_mode = dwt_read32bitoffsetreg(PMSC_ID, PMSC_TXFINESEQ_OFFSET);
+     dwt_write32bitoffsetreg(PMSC_ID, PMSC_TXFINESEQ_OFFSET, PMSC_TXFINESEQ_DISABLE);
 
 }
 
@@ -111,6 +115,7 @@ static bool a_dormir = false;
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+	volatile uint8 respondido;
     if (htim->Instance == htim2.Instance)
     {
     	//	ESTO ES PARA EL ANCHOR
@@ -129,8 +134,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     else if (htim->Instance == htim3.Instance)
     {
     	//	ESTO ES PARA EL TAG
-    	if( do_link(&myTag) )
+    	if ((respondido = do_link(&myTag)) == IS_TIMEOUT){
     		a_dormir = true;
+    	} else {
+    		printf("\nasfd");
+    	}
+    	TagIdx++;
+    	if (TagIdx > 1){
+    		printf("joder");
+    	}
     }
 }
 
@@ -139,7 +151,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 int dw_main(void)
 {
 	conf_data.ntags = 5;
-	conf_data.test_tag = 0;
+	conf_data.test_tag = 2;
 	conf_data.max_fallos_desenlaza = 5;
 	conf_data.max_distancia = 1.5;
 
@@ -181,35 +193,30 @@ int dw_main(void)
     	}
     }
 #else
-    volatile uint32_t cuantos;
-
 	initDW(1);
-    initTag(&myTag, conf_data.ntags);
-    //dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
+    initTag(&myTag, conf_data.ntags, 700, 500);
+    dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
 
     HAL_TIM_Base_Start_IT(&htim3);
-    volatile uint resultado = 0;
-    char dist_str[30] = {0};
 	while (1)
 	{
 		if (myTag.enlazado) {
-			do_answer(&myTag);
-		}
-		if (a_dormir){
+			if(do_answer(&myTag)){
+				dwt_entersleep();
+				HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
+				HAL_Delay(myTag.answer_sleep_ms);
+				resucitaSPI();
+
+				HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
+			}
+		} else if (a_dormir) {
 			a_dormir = false;
-//			cuantos=0;
-//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
 			dwt_entersleep();
-//			usleep(100);
-//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
-//			while (!(HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin))){
-//				cuantos++;
-//			};
-//			sprintf(dist_str, "\nCuantos = %lu, Resultado = %u", cuantos, resultado);
-//			printf("%s", dist_str);
-			//HAL_Delay(700);
-			//resucitaSPI();
-//			resultado = HAL_GPIO_ReadPin(DW_RESET_GPIO_Port, DW_RESET_Pin);
+			HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
+			HAL_Delay(myTag.link_sleep_ms);
+			resucitaSPI();
+
+			HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
 		}
 	}
 #endif

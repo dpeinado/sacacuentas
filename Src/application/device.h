@@ -111,8 +111,9 @@ typedef struct
 	uint nTags;
 	uint8 beaconNumber;
 	uint32 timeRXBeacon;
-	bool enlaceBeacon;
 	uint32 framePeriod;
+	uint16 answer_sleep_ms;
+	uint16 link_sleep_ms;
 } tagData_t;
 
 
@@ -142,6 +143,8 @@ typedef struct
 #define IS_ADDRESS_ERR		4
 #define IS_FRAME_ERR		5
 #define IS_ERROR_UNKNOWN	6
+#define IS_CLOCK_PLL		7
+#define IS_NOTREADING		8
 
 /* UWB microsecond (uus) to device time unit (dtu, around 15.65 ps) conversion factor.
  * 1 uus = 512 / 499.2 µs and 1 µs = 499.2 * 128 dtu. */
@@ -166,14 +169,15 @@ typedef unsigned long long uint64;
 //#define RX_ANT_DLY 16436
 
 void initAnchor(anchorData_t *midata, uint8 nt);
-void initTag(tagData_t *midata, uint8 nt);
+void initTag(tagData_t *midata, uint8 nt, uint16 uno, uint16 dos);
 uint8 do_range(anchorData_t *myAnc, uint8 myIndx);
 uint8 do_answer(tagData_t *myTag);
+uint8 do_unlink(tagData_t *myTag);
 void get_system_state(anchorData_t *myAnc);
 uint8 do_beacon(anchorData_t *myAnc, uint8 myIndx);
 uint8 do_link(tagData_t *myTag);
 uint8 do_process_polling(tagData_t *myTag);
-
+uint8 do_setRXTXSleep(uint16 tiempo);
 
 uint8 is_range_message(uint8 *buffer, uint16 length);
 uint8 is_answer_message(uint8 *buffer, uint16 length);

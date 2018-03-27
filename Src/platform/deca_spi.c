@@ -103,11 +103,12 @@ int readfromspi(uint16_t headerLength,
 				uint32_t readlength,
 				uint8_t *readBuffer)
 {
-	uint8_t spi_TmpBuffer[BUFFLEN];
+
+	uint8_t spi_TmpBuffer[BUFFLEN] __attribute__ ((aligned (4)));
 	assert_param(headerLength+readlength < BUFFLEN );
 	
-    decaIrqStatus_t  stat ;
-    stat = decamutexon() ;
+    //decaIrqStatus_t  stat ;
+    //stat = decamutexon() ;
 
 	/* Blocking: Check whether previous transfer has been finished */
 	while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY);
@@ -120,7 +121,7 @@ int readfromspi(uint16_t headerLength,
 
 	memcpy((uint8_t*)readBuffer , (uint8_t*)&spi_TmpBuffer[headerLength], readlength);
 
-	decamutexoff(stat);
+	//decamutexoff(stat);
 
     return 0;
 } // end readfromspi()

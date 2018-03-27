@@ -88,7 +88,7 @@ void initAnchor(anchorData_t *midata, uint8 nt){
 	dwt_writetodevice(PANADR_ID, PANADR_SHORT_ADDR_OFFSET, 2, midata->address);
 }
 
-void initTag(tagData_t *midata, uint8 nt)
+void initTag(tagData_t *midata, uint8 nt, uint16 uno, uint16 dos)
 {
 	midata->panID[0]=0x01;
 	midata->panID[1]=0x00;
@@ -100,8 +100,9 @@ void initTag(tagData_t *midata, uint8 nt)
 	midata->nTags = nt;
 	midata->beaconNumber=0;
 	midata->timeRXBeacon = 0;
-	midata->enlaceBeacon = false;
 	midata->framePeriod = (uint64) (MAX_TAGS*7500*63897.76358) >> 8;
+	midata->link_sleep_ms = uno;
+	midata->answer_sleep_ms = dos;
 
 	answerFrame = (frameTagFinal_t )
 	{
@@ -260,10 +261,11 @@ uint8 do_read(uint16 timeout, int mode){
 
 	dwt_setrxtimeout(timeout);
 	dwt_rxenable(mode);
+	usleep(100);
 	while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) &
-		(SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR)));
+		(SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_CLKPLL_LL)));
 	if (status_reg == 0xffffffff)
-		return IS_ERROR_UNKNOWN;
+		return IS_NOTREADING;
 	if (status_reg & SYS_STATUS_RXFCG){
 	    dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_GOOD);
 
@@ -284,6 +286,8 @@ uint8 do_read(uint16 timeout, int mode){
 			respuesta = IS_TIMEOUT;
 		if (status_reg & SYS_STATUS_ALL_RX_ERR)
 			respuesta = IS_FRAME_ERR;
+		if (status_reg & SYS_STATUS_CLKPLL_LL)
+			respuesta = IS_CLOCK_PLL;
 		if (respuesta){
 			dwt_rxreset();
 			dwt_write32bitreg(SYS_STATUS_ID, SYS_STATUS_ALL_RX_TO);
@@ -297,39 +301,32 @@ uint8 do_read(uint16 timeout, int mode){
 
 uint8 do_link(tagData_t *myTag){
 	uint8 respuesta;
-
 	respuesta = do_read(9750, DWT_START_RX_IMMEDIATE);
 	if (respuesta == IS_POLL_MSG){
 		respuesta = do_read(9750, DWT_START_RX_IMMEDIATE);
 		if (respuesta != IS_BEACON_MSG){
 			dwt_rxreset();
-			return -1;
+			return 11;
 		}
 	} else if (respuesta == IS_TIMEOUT){
-		status_reg = dwt_read32bitreg(SYS_STATUS_ID);
 		dwt_rxreset();
-		status_reg = dwt_read32bitreg(SYS_STATUS_ID);
-		if (myTag->enlazado){
-			myTag->enlazado = false;
-			HAL_TIM_Base_Start_IT(&htim3);
-		}
-		return -1;
-	} else if (respuesta != IS_BEACON_MSG){
-		if (myTag->enlazado){
-			myTag->enlazado = false;
-			HAL_TIM_Base_Start_IT(&htim3);
-		}
-		dwt_rxreset();
-		return -1;
-	} else {
-		//error unknown
+		do_unlink(myTag);
+		return IS_TIMEOUT;
+	} else if ((respuesta == IS_CLOCK_PLL) || (respuesta == IS_NOTREADING)) {
 		resucitaSPI();
-		return -1;
+		reset_DW1000();
+		do_unlink(myTag);
+		return 12;
+	}else if (respuesta != IS_BEACON_MSG){
+		if (myTag->enlazado){
+			do_unlink(myTag);
+		}
+		dwt_rxreset();
+		return 13;
 	}
 	HAL_TIM_Base_Stop_IT(&htim3);
 	myTag->beaconNumber = rx_buffer[FRAME_INDX_TAG_NUMBER];
 	myTag->timeRXBeacon = dwt_readrxtimestamphi32();
-	myTag->enlaceBeacon = true;
 	uint8 i, j;
 	uint32 cualas;
 	i = myTag->address[0];
@@ -345,35 +342,46 @@ uint8 do_link(tagData_t *myTag){
 	if (respuesta == IS_POLL_MSG){
 		do_process_polling(myTag);
 	} else {
-		if (myTag->enlazado){
-			myTag->enlazado = false;
-			HAL_TIM_Base_Start_IT(&htim3);
-		}
+		do_unlink(myTag);
 		dwt_rxreset();
-		return -1;
+		return 14;
 	}
 	return 0;
 }
 
-uint8 do_answer(tagData_t *myTag){
-	uint8 respuesta;
-	respuesta = do_read(9750, DWT_START_RX_DELAYED  | DWT_IDLE_ON_DLY_ERR);
-	if (respuesta == IS_POLL_MSG)
-    	do_process_polling(myTag);
-	else {
+uint8 do_unlink(tagData_t *myTag){
+	if (myTag->enlazado){
 		myTag->enlazado = false;
 		HAL_TIM_Base_Start_IT(&htim3);
 	}
 	return 0;
 }
+uint8 do_answer(tagData_t *myTag){
+	volatile uint8 respuesta;
+	respuesta = do_read(9750, DWT_START_RX_DELAYED  | DWT_IDLE_ON_DLY_ERR);
+	if (respuesta == IS_POLL_MSG){
+    	do_process_polling(myTag);
+		return 1;
+	} else if ((respuesta == IS_CLOCK_PLL) || (respuesta == IS_NOTREADING)) {
+		resucitaSPI();
+		reset_DW1000();
+	}
+	do_unlink(myTag);
+	return 0;
+}
 
+uint8 do_setRXTXSleep(uint16 tiempo){
+    port_set_dw1000_slowrate();
+    dwt_configuresleepcnt(tiempo);
+    port_set_dw1000_fastrate();
+    return 0;
+}
 
 uint8 do_process_polling(tagData_t *myTag){
     uint64 poll_rx_ts;
     uint64 resp_tx_ts;
 	uint32 resp_tx_time;
 	int ret;
-	uint16 lp_osc_freq, sleep_cnt;
 
 	poll_rx_ts = get_rx_timestamp_u64();
 	resp_tx_time = (poll_rx_ts + (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME)) >> 8;
@@ -393,14 +401,6 @@ uint8 do_process_polling(tagData_t *myTag){
 	myTag->enlazado = true;
 	resp_tx_ts = ((poll_rx_ts - (POLL_RX_TO_RESP_TX_DLY_UUS * UUS_TO_DWT_TIME)) >> 8) + myTag->framePeriod;
 	dwt_setdelayedtrxtime( resp_tx_ts );
-
-/*	port_set_dw1000_slowrate();
-	lp_osc_freq = (XTAL_FREQ_HZ / 2) / dwt_calibratesleepcnt();
-	sleep_cnt = ((550 * lp_osc_freq) / 1000) >> 12;
-	dwt_configuresleepcnt(sleep_cnt);
-	port_set_dw1000_fastrate();
-	dwt_entersleep();*/
-
 	return 0;
 }
 

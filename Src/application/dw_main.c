@@ -194,7 +194,7 @@ int dw_main(void)
     }
 #else
 	initDW(1);
-    initTag(&myTag, conf_data.ntags, 700, 500);
+    initTag(&myTag, conf_data.ntags, 950, 700);
     dwt_enableframefilter(DWT_FF_DATA_EN | DWT_FF_ACK_EN);
 
     HAL_TIM_Base_Start_IT(&htim3);
@@ -206,7 +206,6 @@ int dw_main(void)
 				HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
 				HAL_Delay(myTag.answer_sleep_ms);
 				resucitaSPI();
-
 				HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
 			}
 		} else if (a_dormir) {
@@ -215,7 +214,6 @@ int dw_main(void)
 			HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
 			HAL_Delay(myTag.link_sleep_ms);
 			resucitaSPI();
-
 			HAL_GPIO_TogglePin(DW_DEBB_GPIO_Port, DW_DEBB_Pin);
 		}
 	}

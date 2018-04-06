@@ -263,7 +263,7 @@ uint8 do_read(uint16 timeout, int mode){
 	dwt_rxenable(mode);
 	usleep(100);
 	while (!((status_reg = dwt_read32bitreg(SYS_STATUS_ID)) &
-		(SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR | SYS_STATUS_CLKPLL_LL)));
+		(SYS_STATUS_RXFCG | SYS_STATUS_ALL_RX_TO | SYS_STATUS_ALL_RX_ERR ))); // | SYS_STATUS_CLKPLL_LL)));
 	if (status_reg == 0xffffffff)
 		return IS_NOTREADING;
 	if (status_reg & SYS_STATUS_RXFCG){
@@ -282,11 +282,11 @@ uint8 do_read(uint16 timeout, int mode){
 	} else {
 		if (status_reg & SYS_STATUS_AFFREJ)
 			respuesta = IS_ADDRESS_ERR;
-		if (status_reg & SYS_STATUS_ALL_RX_TO)
+		else if (status_reg & SYS_STATUS_ALL_RX_TO)
 			respuesta = IS_TIMEOUT;
-		if (status_reg & SYS_STATUS_ALL_RX_ERR)
+		else if (status_reg & SYS_STATUS_ALL_RX_ERR)
 			respuesta = IS_FRAME_ERR;
-		if (status_reg & SYS_STATUS_CLKPLL_LL)
+		else if (status_reg & SYS_STATUS_CLKPLL_LL)
 			respuesta = IS_CLOCK_PLL;
 		if (respuesta){
 			dwt_rxreset();
